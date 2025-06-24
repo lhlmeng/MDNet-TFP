@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, roc_auc_score, average_precision_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, average_precision_score
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import os
@@ -74,7 +74,7 @@ def collate_fn(batch):
 
 
 def evaluate_model(model, dataloader, device):
-    """Evaluate model performance"""
+    """Evaluate model performance with comprehensive metrics"""
     model.eval()
     all_labels = []
     all_predictions = []
@@ -107,19 +107,24 @@ def evaluate_model(model, dataloader, device):
             all_predictions.extend(preds)
             all_probs.extend(probs)
 
-    # Calculate metrics
-    all_labels = np.array(all_labels)
-    all_predictions = np.array(all_predictions)
-    all_probs = np.array(all_probs)
+    # Calculate comprehensive metrics
+    all_labels = np.array(all_labels).flatten()
+    all_predictions = np.array(all_predictions).flatten()
+    all_probs = np.array(all_probs).flatten()
 
+    # Calculate all metrics
     accuracy = accuracy_score(all_labels, all_predictions)
     precision = precision_score(all_labels, all_predictions, zero_division=0)
+    recall = recall_score(all_labels, all_predictions, zero_division=0)
+    f1 = f1_score(all_labels, all_predictions, zero_division=0)
     auc = roc_auc_score(all_labels, all_probs)
     pr_auc = average_precision_score(all_labels, all_probs)
 
     return {
         'accuracy': accuracy,
         'precision': precision,
+        'recall': recall,
+        'f1': f1,
         'auc': auc,
         'pr_auc': pr_auc
     }
@@ -216,14 +221,16 @@ def train_model(model, train_loader, val_loader, optimizer, criterion, device,
         if scheduler is not None:
             scheduler.step(avg_val_loss)
 
-        # Log progress
+        # Log progress with all metrics
         logger.info(f"Epoch {epoch + 1}/{num_epochs} - "
                     f"Train Loss: {avg_train_loss:.4f}, "
                     f"Val Loss: {avg_val_loss:.4f}, "
                     f"Val ACC: {val_metrics['accuracy']:.4f}, "
                     f"Val AUC: {val_metrics['auc']:.4f}, "
-                    f"Val Precision: {val_metrics['precision']:.4f}, "
-                    f"Val PR-AUC: {val_metrics['pr_auc']:.4f}")
+                    f"Val PR-AUC: {val_metrics['pr_auc']:.4f}, "
+                    f"Val F1: {val_metrics['f1']:.4f}, "
+                    f"Val Recall: {val_metrics['recall']:.4f}, "
+                    f"Val Precision: {val_metrics['precision']:.4f}")
 
         # Early stopping
         if avg_val_loss < best_val_loss:
@@ -245,7 +252,7 @@ def train_model(model, train_loader, val_loader, optimizer, criterion, device,
 
 
 def plot_training_history(history, model_name):
-    """Plot training history"""
+    """Plot training history with all metrics"""
 
     # Create directory for plots if it doesn't exist
     os.makedirs("plots", exist_ok=True)
@@ -262,21 +269,29 @@ def plot_training_history(history, model_name):
     plt.savefig(f"plots/{model_name}_loss.png")
     plt.close()
 
-    # Plot metrics
-    metrics = ['accuracy', 'precision', 'auc', 'pr_auc']
-    plt.figure(figsize=(12, 8))
+    # Plot all metrics in a comprehensive way
+    metrics = ['accuracy', 'precision', 'recall', 'f1', 'auc', 'pr_auc']
+    plt.figure(figsize=(15, 10))
 
     for i, metric in enumerate(metrics):
         values = [epoch_metrics[metric] for epoch_metrics in history['val_metrics']]
-        plt.subplot(2, 2, i + 1)
-        plt.plot(values)
-        plt.title(f'Validation {metric.upper()}')
+        plt.subplot(2, 3, i + 1)
+        plt.plot(values, linewidth=2)
+        plt.title(f'Validation {metric.replace("_", "-").upper()}')
         plt.xlabel('Epoch')
-        plt.ylabel(metric.upper())
-        plt.grid(True)
+        plt.ylabel(metric.replace("_", "-").upper())
+        plt.grid(True, alpha=0.3)
+        # Add max value annotation
+        max_val = max(values)
+        max_epoch = values.index(max_val)
+        plt.annotate(f'Max: {max_val:.3f}', 
+                    xy=(max_epoch, max_val), 
+                    xytext=(max_epoch, max_val + 0.02),
+                    arrowprops=dict(arrowstyle='->', color='red'),
+                    fontsize=9, color='red')
 
     plt.tight_layout()
-    plt.savefig(f"plots/{model_name}_metrics.png")
+    plt.savefig(f"plots/{model_name}_metrics.png", dpi=300, bbox_inches='tight')
     plt.close()
 
 
@@ -471,10 +486,17 @@ def three_stage_training(train_data, val_data, test_data):
     logger.info("Evaluating final model on test set...")
     test_metrics = evaluate_model(final_model, test_loader, device)
 
-    logger.info(f"Test ACC: {test_metrics['accuracy']:.4f}")
-    logger.info(f"Test AUC: {test_metrics['auc']:.4f}")
-    logger.info(f"Test Precision: {test_metrics['precision']:.4f}")
-    logger.info(f"Test PR-AUC: {test_metrics['pr_auc']:.4f}")
+    # Log all test metrics
+    logger.info("="*50)
+    logger.info("FINAL TEST RESULTS:")
+    logger.info("="*50)
+    logger.info(f"Test Accuracy:   {test_metrics['accuracy']:.4f}")
+    logger.info(f"Test AUC:        {test_metrics['auc']:.4f}")
+    logger.info(f"Test PR-AUC:     {test_metrics['pr_auc']:.4f}")
+    logger.info(f"Test F1 Score:   {test_metrics['f1']:.4f}")
+    logger.info(f"Test Recall:     {test_metrics['recall']:.4f}")
+    logger.info(f"Test Precision:  {test_metrics['precision']:.4f}")
+    logger.info("="*50)
 
     # Save final model
     torch.save(final_model.state_dict(), "MDNetDBP_final.pth")
@@ -485,13 +507,11 @@ def three_stage_training(train_data, val_data, test_data):
 
 if __name__ == "__main__":
 
-
     def generate_dummy_data(num_samples, seq_length=101):
         bases = ['A', 'T', 'C', 'G']
         sequences = [''.join(np.random.choice(bases) for _ in range(seq_length)) for _ in range(num_samples)]
         labels = np.random.randint(0, 2, num_samples)
         return {'sequences': sequences, 'labels': labels}
-
 
     train_data = generate_dummy_data(1000)
     val_data = generate_dummy_data(200)
