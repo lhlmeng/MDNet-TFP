@@ -11,14 +11,13 @@
 In this study, we propose a novel multi-view deep learning framework called Multi-view Deep Learning for Transcription Factor Binding Prediction (MDNet-TFP). Our framework introduces a bidirectional reverse complement module (BiRC-Mamba), which effectively accounts for the bidirectional and reverse complement properties characteristic of DNA sequences. Furthermore, we developed a multi-scale convolutional recurrent attention network (MCRAN) that extracts both structural and functional DNA features across multiple dimensions while integrating information from various biological datasets. In 165 CHIP-seq datasets, our model achieve average accuracy(ACC) of 0.881, ROC-AUC of 0.937 and PR-AUC of 0.934.
 
 ## 2. Python Environment
-python XXX and packages version:
-
-+ torch == XXXX
-+ torchvision == XXX
-+ mamba_ssm == XXX
-+ numpy == XXX
-+ matplotlib == XXX
-+ scikit-learn == XXX
+python 3.8 and packages version:
++ torch == 2.1.1
++ torchvision == 0.15.1
++ mamba_ssm == 2.2.2
++ numpy == 1.19.2
++ matplotlib == 3.6
++ scikit-learn == 0.24
 ## 3. Project Structure
 ### 3.1 Dataset
 - We choose the 165 ChIP-seq experimental datasets from the Encyclopedia of DNA Elements(ENCODE) database, which include TFBSs for 29 distinct TFs across 32 different cell lines. 
